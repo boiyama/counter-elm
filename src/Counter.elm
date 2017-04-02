@@ -1,22 +1,22 @@
 module Counter exposing (..)
 
-import Html exposing (Html, button, p, text)
+import Html exposing (Html, button, p, program, text)
 import Html.Events exposing (onClick)
-import Time exposing (Time, second)
+import Time exposing (second)
+import Process exposing (sleep)
+import Task exposing (andThen, perform, succeed)
 
 
 -- MODEL
 
 
 type alias Model =
-    { count : Int
-    , waitingIncrementAsync : Bool
-    }
+    Int
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( Model 0 False, Cmd.none )
+    ( 0, Cmd.none )
 
 
 
@@ -27,7 +27,6 @@ type Msg
     = Increment
     | IncrementIfOdd
     | IncrementAsync
-    | IncrementAsyncComplete Time
     | Decrement
 
 
@@ -35,38 +34,28 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         Increment ->
-            ( { model | count = model.count + 1 }, Cmd.none )
+            ( model + 1, Cmd.none )
 
         IncrementIfOdd ->
             let
                 count =
-                    if model.count % 2 /= 0 then
-                        model.count + 1
+                    if model % 2 /= 0 then
+                        model + 1
                     else
-                        model.count
+                        model
             in
-                ( { model | count = count }, Cmd.none )
+                ( count, Cmd.none )
 
         IncrementAsync ->
-            ( { model | waitingIncrementAsync = True }, Cmd.none )
-
-        IncrementAsyncComplete _ ->
-            ( Model (model.count + 1) False, Cmd.none )
+            ( model, incrementAsync )
 
         Decrement ->
-            ( { model | count = model.count - 1 }, Cmd.none )
+            ( model - 1, Cmd.none )
 
 
-
--- SUBSCRIPTIONS
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    if model.waitingIncrementAsync then
-        Time.every second IncrementAsyncComplete
-    else
-        Sub.none
+incrementAsync : Cmd Msg
+incrementAsync =
+    perform identity (andThen (\_ -> succeed Increment) (sleep second))
 
 
 
@@ -76,11 +65,11 @@ subscriptions model =
 view : Model -> Html Msg
 view model =
     p []
-        [ text ("Clicked: " ++ toString model.count ++ " times")
-        , text " "
-        , button [ onClick Decrement ] [ text "-" ]
+        [ text ("Clicked: " ++ toString model ++ " times")
         , text " "
         , button [ onClick Increment ] [ text "+" ]
+        , text " "
+        , button [ onClick Decrement ] [ text "-" ]
         , text " "
         , button [ onClick IncrementIfOdd ] [ text "Increment if odd" ]
         , text " "
@@ -88,11 +77,15 @@ view model =
         ]
 
 
+
+-- MAIN
+
+
 main : Program Never Model Msg
 main =
-    Html.program
+    program
         { init = init
-        , view = view
         , update = update
-        , subscriptions = subscriptions
+        , subscriptions = \_ -> Sub.none
+        , view = view
         }
